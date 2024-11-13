@@ -1,33 +1,37 @@
 #!/bin/bash
 
-# Function to check if an IP is valid
-is_valid_ip() {
-  local ip=$1
-  # Check if IP matches the format of a valid IPv4 address
-  if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-    # Split the IP into its octets and ensure each one is <= 255
-    for octet in ${ip//./ }; do
-      if ((octet < 0 || octet > 255)); then
-        return 1
-      fi
-    done
-    return 0
+# Function to check if a hostname is associated with an IP address using a specific DNS server
+check_ip_association() {
+  local hostname=$1
+  local ip=$2
+  local dns_server=$3
+
+  # Use dig to resolve the hostname with the specified DNS server
+  resolved_ip=$(dig +short "$hostname" @"$dns_server")
+
+  # Check if the resolved IP matches the provided IP
+  if [[ "$resolved_ip" == "$ip" ]]; then
+    echo "The IP address $ip is correctly associated with the hostname $hostname on DNS server $dns_server."
+  else
+    echo "The IP address $ip does NOT match the hostname $hostname on DNS server $dns_server."
   fi
-  return 1
 }
 
-# Read /etc/hosts and check each IP
-while read -r line; do
-  # Ignore comments and empty lines
-  [[ $line =~ ^#.*$ || -z $line ]] && continue
+# Example usage with parameters
+# check_ip_association "example.com" "93.184.216.34" "8.8.8.8"
 
-  # Extract the first field (IP) from the line
+# For usage with multiple entries in /etc/hosts
+while IFS= read -r line; do
+  # Skip empty lines and comments
+  [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+  # Extract IP and hostname from each line in /etc/hosts
   ip=$(echo "$line" | awk '{print $1}')
+  hostname=$(echo "$line" | awk '{print $2}')
 
-  # Check if it is a valid IP
-  if is_valid_ip "$ip"; then
-    echo "Valid IP: $ip"
-  else
-    echo "Invalid IP: $ip"
-  fi
-done </etc/hosts
+  # Specify the DNS server (example: Google's DNS server)
+  dns_server="8.8.8.8"
+
+  # Check association
+  check_ip_association "$hostname" "$ip" "$dns_server"
+done <"/etc/hosts"
